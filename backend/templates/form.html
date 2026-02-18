@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema Pericial - Pruebas</title>
+</head>
+<body>
+
+<h2>Login</h2>
+<form id="loginForm">
+    Usuario: <input type="text" id="username"><br><br>
+    Contraseña: <input type="password" id="password"><br><br>
+    <button type="submit">Login</button>
+</form>
+
+<hr>
+
+<h2>Crear Llamado</h2>
+<form id="llamadoForm">
+    Libro ID: <input type="number" id="libro_id"><br><br>
+    Materia ID: <input type="number" id="materia_id"><br><br>
+    MP ID: <input type="number" id="mp_id"><br><br>
+    Perito ID: <input type="number" id="perito_id"><br><br>
+    Carpeta: <input type="text" id="carpeta"><br><br>
+    Detalles: <input type="text" id="detalles"><br><br>
+    Fecha: <input type="date" id="fecha"><br><br>
+    Hora: <input type="time" id="hora"><br><br>
+    <button type="submit">Crear</button>
+</form>
+
+<hr>
+
+<h2>Listado de Llamados</h2>
+<button onclick="listar()">Actualizar Lista</button>
+<button onclick="testMasivo()">Prueba Masiva</button>
+
+<table border="1" id="tabla">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Número</th>
+            <th>Libro</th>
+            <th>Materia</th>
+            <th>Fecha</th>
+            <th>Estado</th>
+            <th>Tipo</th>
+            <th>Entrega Perito</th>
+            <th>Acción</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<hr>
+
+<h3>Resultado</h3>
+<pre id="resultado"></pre>
+
+<script>
+
+// LOGIN
+document.getElementById("loginForm").onsubmit = async (e) => {
+    e.preventDefault();
+
+    const res = await fetch("/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value
+        })
+    });
+
+    const data = await res.json();
+    document.getElementById("resultado").textContent = JSON.stringify(data, null, 2);
+};
+
+// CREAR LLAMADO
+document.getElementById("llamadoForm").onsubmit = async (e) => {
+    e.preventDefault();
+
+    const res = await fetch("/crear-llamado", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            libro_id: parseInt(document.getElementById("libro_id").value),
+            materia_id: parseInt(document.getElementById("materia_id").value),
+            mp_solicitante_id: parseInt(document.getElementById("mp_id").value),
+            perito_id: parseInt(document.getElementById("perito_id").value),
+            detenido: false,
+            carpeta_investigacion: document.getElementById("carpeta").value,
+            detalles: document.getElementById("detalles").value,
+            fecha_registro: document.getElementById("fecha").value,
+            hora_registro: document.getElementById("hora").value
+        })
+    });
+
+    const data = await res.json();
+    document.getElementById("resultado").textContent = JSON.stringify(data, null, 2);
+
+    listar();
+};
+
+// LISTAR
+async function listar() {
+    const res = await fetch("/listar-llamados");
+    const data = await res.json();
+
+    const tbody = document.querySelector("#tabla tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(item => {
+
+        let accion = "";
+
+        if (!item.estado_cerrado) {
+            accion = `
+                <select id="sel_${item.llamado_id}">
+                    <option value="DICTAMEN">DICTAMEN</option>
+                    <option value="INFORME">INFORME</option>
+                    <option value="CANCELADO">CANCELADO</option>
+                </select>
+                <button onclick="descargar(${item.llamado_id})">Aplicar</button>
+            `;
+        } else {
+            accion = "-";
+        }
+
+        const row = `
+            <tr>
+                <td>${item.llamado_id}</td>
+                <td>${item.numero_oficial}</td>
+                <td>${item.libro}</td>
+                <td>${item.materia}</td>
+                <td>${new Date(item.fecha_registro).toLocaleDateString()}</td>
+                <td>${item.estado_cerrado ? "CERRADO" : "PENDIENTE"}</td>
+                <td>${item.tipo_documento || "-"}</td>
+                <td>${item.fecha_entrega_perito ? new Date(item.fecha_entrega_perito).toLocaleString() : "-"}</td>
+                <td>${accion}</td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+}
+
+// DESCARGAR
+async function descargar(llamado_id) {
+
+    const tipo = document.getElementById(`sel_${llamado_id}`).value;
+
+    const res = await fetch("/descargar-llamado", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            llamado_id: llamado_id,
+            tipo_documento: tipo
+        })
+    });
+
+    const data = await res.json();
+    document.getElementById("resultado").textContent = JSON.stringify(data, null, 2);
+
+    listar();
+}
+
+// PRUEBA MASIVA
+async function testMasivo() {
+
+    const res = await fetch("/test-masivo");
+    const data = await res.json();
+
+    document.getElementById("resultado").textContent = JSON.stringify(data, null, 2);
+
+    listar();
+}
+
+</script>
+
+</body>
+</html>

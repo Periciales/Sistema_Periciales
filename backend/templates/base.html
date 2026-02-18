@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema Integral de Control Pericial</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            background-color: #f8f9fa;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            height: 100vh;
+            background-color: #0d264a;
+            color: #ffffff;
+            padding-top: 20px;
+        }
+
+        .sidebar a {
+            color: #cfd8e3;
+            display: block;
+            font-size: 16px;
+            padding: 12px 24px;
+            text-decoration: none;
+        }
+
+        .sidebar a:hover {
+            background-color: #0a1e3a;
+            color: #ffffff;
+        }
+
+        .topbar {
+            background-color: white;
+            padding: 10px 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .content-area {
+            padding: 30px;
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .book-title {
+            font-size: 28px;
+            font-weight: 300;
+            margin-bottom: 20px;
+        }
+
+        /* 🔹 Contenedor marca institucional */
+        .watermark-container {
+            position: fixed;
+            top: 80px;
+            right: 30px;
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* 🔹 Libro (más discreto) */
+        .watermark-book {
+            font-size: 50px;
+            font-weight: 600;
+            color: rgba(0,0,0,0.08);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* 🔹 Año grande */
+        .watermark-year {
+            font-size: 90px;
+            font-weight: bold;
+            color: rgba(0,0,0,0.05);
+            line-height: 0.9;
+        }
+
+
+
+        .modal {
+            z-index: 3000 !important;
+        }
+
+        .modal-backdrop {
+            z-index: 2999 !important;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="d-flex" style="height:100vh;">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar col-2">
+        <h5 class="text-center">Menú</h5>
+        <hr style="border-color: rgba(255,255,255,0.2);">
+
+        {% if session['rol'] in ['ADMIN','RECEPTOR'] %}
+        <a href="/nuevo-llamado">Nuevo Llamado</a>
+        <a href="#">Captura Histórico</a>
+        <a href="#">Descargar</a>
+        <a href="#">Buscar</a>
+        {% endif %}
+
+        {% if session['rol'] == 'ADMIN' %}
+        <hr style="border-color: rgba(255,255,255,0.2);">
+        <a href="#">Usuarios</a>
+        <a href="#">Configuración</a>
+        {% endif %}
+    </div>
+
+    <!-- MAIN -->
+    <div class="col-10 d-flex flex-column" style="height:100vh;">
+
+        <!-- TOPBAR -->
+        <div class="topbar d-flex justify-content-between align-items-center">
+
+            <div>
+                Sistema Integral de Control Pericial
+            </div>
+
+            <div class="d-flex align-items-center gap-4">
+
+                <!-- LIBRO ACTUAL -->
+                <div class="text-end">
+                    <div style="font-size:12px; color:#6c757d;">Libro</div>
+                    <div id="topbar-libro" style="font-weight:600;">
+                        {{ libro_nombre_actual if libro_nombre_actual else "-" }}
+                    </div>
+                </div>
+
+                <!-- AÑO -->
+                <div class="text-end">
+                    <div style="font-size:12px; color:#6c757d;">Año</div>
+                    <select id="yearSelect"
+                            class="form-select form-select-sm"
+                            style="width:90px;">
+                        {% for y in range(anio_actual - 5, anio_actual + 2) %}
+                            <option value="{{ y }}" {% if y == anio_actual %}selected{% endif %}>
+                                {{ y }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- USUARIO -->
+                <div>
+                    Usuario: {{ session['username'] }}
+                    <a href="/logout" class="btn btn-sm btn-outline-danger ms-2">
+                        Salir
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- CONTENIDO -->
+        <div class="content-area">
+
+            <div class="book-title">
+                {% block book_title %}{% endblock %}
+            </div>
+
+            {% block content %}{% endblock %}
+
+        </div>
+
+    </div>
+</div>
+
+<!-- 🔥 Marca de agua -->
+<div class="watermark-container">
+    <div id="watermark-book" class="watermark-book">
+        {% if libro_nombre_actual %}
+            {{ libro_nombre_actual }}
+        {% endif %}
+    </div>
+
+    <div id="watermark-year" class="watermark-year">
+        {{ anio_actual }}
+    </div>
+</div>
+
+{% block modals %}{% endblock %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.getElementById("yearSelect").addEventListener("change", async function() {
+
+    const nuevoAnio = this.value;
+
+    await fetch("/cambiar-anio", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ anio: nuevoAnio })
+    });
+
+    // Actualiza marca de agua
+    const watermarkYear = document.getElementById("watermark-year");
+    if (watermarkYear) watermarkYear.innerText = nuevoAnio;
+
+    // Recargar historial si existe
+    if (typeof cargarHistorial === "function") {
+        cargarHistorial();
+    }
+});
+</script>
+
+</body>
+</html>

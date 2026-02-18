@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+
+{% block book_title %}
+Nuevo Llamado
+{% endblock %}
+
+{% block content %}
+
+<div class="card p-4 border-0 bg-transparent shadow-none"">
+
+
+    </div>
+    <!-- Mensaje de éxito -->
+    <div id="successBox" class="alert alert-success d-none">
+        <h5>Llamado creado correctamente</h5>
+        <h2 id="numeroGenerado"></h2>
+    </div>
+
+    <!-- Selección de Libro -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <label class="form-label">Libro</label>
+            <select id="libroSelect" class="form-select">
+                {% for libro in libros %}
+                    <option value="{{ libro[0] }}"
+                        {% if libro_actual and libro[0] == libro_actual %}selected{% endif %}>
+                        {{ libro[1] }}
+                    </option>
+                {% endfor %}
+            </select>
+
+        </div>
+
+
+    </div>
+
+    <hr>
+
+    <form id="nuevoLlamadoForm">
+
+        <!-- Contenedor dinámico de materias -->
+        <div id="materiasContainer"></div>
+
+        <!-- Botón agregar materia (solo visible en SUIP) -->
+        <button type="button"
+                id="btnAgregarMateria"
+                class="btn btn-sm btn-outline-secondary mb-3 d-none"
+                onclick="agregarMateria()">
+            Agregar Materia
+        </button>
+
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Ministerio Público</label>
+                <select id="mp_id" class="form-select">
+                    {% for mp in autoridades %}
+                        <option value="{{ mp[0] }}">{{ mp[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Carpeta de Investigación</label>
+                <input type="text" id="carpeta" class="form-control" required>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Fecha</label>
+                <input type="date" id="fecha" class="form-control" required>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Hora</label>
+                <input type="time" id="hora" class="form-control" required>
+            </div>
+
+            <div class="col-md-4 d-flex align-items-center">
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="detenido">
+                    <label class="form-check-label">
+                        Detenido
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            Guardar Llamado
+        </button>
+
+    </form>
+
+    <hr>
+
+    <h5 class="mt-4">Historial del Libro</h5>
+
+
+    <div class="row mb-2">
+        <div class="col-md-4">
+            <input type="number"
+                id="irANumero"
+                class="form-control"
+                placeholder="Ir al número..."
+                min="1">
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-outline-primary w-100"
+                    onclick="irANumero()">
+                Ir
+            </button>
+        </div>
+    </div>
+
+
+
+
+
+
+    
+    <div class="card">
+        <div class="card-body p-2">
+            <div style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-hover" id="tablaHistorial">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Fecha</th>
+                            <th>Carpeta</th>
+                            <th>Periciales</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Descargar -->
+    <div class="modal fade" id="modalDescarga" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+        <div class="modal-header">
+            <h5 class="modal-title">Descargar Pericial</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body">
+
+            <input type="hidden" id="modal_pericial_id">
+
+            <div class="mb-3">
+            <label class="form-label">Tipo de Documento</label>
+            <select id="modal_tipo" class="form-select">
+                <option value="DICTAMEN">DICTAMEN</option>
+                <option value="INFORME">INFORME</option>
+                <option value="CANCELADO">CANCELADO</option>
+            </select>
+            </div>
+
+            <div class="mb-3">
+            <label class="form-label">Recibido por (MP)</label>
+            <input type="text" id="modal_recibido" class="form-control">
+            </div>
+
+            <div class="mb-3">
+            <label class="form-label">Fecha Entrega Autoridad</label>
+            <input type="datetime-local" id="modal_fecha" class="form-control">
+            </div>
+
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">
+            Cancelar
+            </button>
+            <button class="btn btn-primary" onclick="confirmarDescarga()">
+            Confirmar Descarga
+            </button>
+        </div>
+
+        </div>
+    </div>
+</div>
+
+</div>
+
+<script>
+
+let esSUIP = false;
+let materiasDisponibles = [];
+const SUIP_ID = 1; // ⚠ Ajustar si SUIP tiene otro ID
+
+function aplicarLibro() {
+
+    const libroId = parseInt(document.getElementById("libroSelect").value);
+
+    esSUIP = (libroId === SUIP_ID);
+
+    fetch(`/materias-por-libro/${libroId}`)
+        .then(res => res.json())
+        .then(data => {
+
+            materiasDisponibles = data;
+
+            const container = document.getElementById("materiasContainer");
+            container.innerHTML = "";
+
+            if (esSUIP) {
+                document.getElementById("btnAgregarMateria").classList.remove("d-none");
+            } else {
+                document.getElementById("btnAgregarMateria").classList.add("d-none");
+            }
+
+            agregarMateria();
+
+            // 🔥 ACTUALIZA MARCA DE AGUA
+            const libroSelect = document.getElementById("libroSelect");
+            const nombreLibro = libroSelect.options[libroSelect.selectedIndex].text;
+            const topbarLibro = document.getElementById("topbar-libro");
+            if (topbarLibro) {
+                topbarLibro.innerText = nombreLibro;
+            }
+            const watermarkBook = document.getElementById("watermark-book");
+            if (watermarkBook) {
+                watermarkBook.innerText = nombreLibro;
+            }
+
+            // 🔥 Cargar historial del libro seleccionado
+            cargarHistorial();
+
+        });
+}
+
+
+function agregarMateria() {
+
+    const container = document.getElementById("materiasContainer");
+
+    const div = document.createElement("div");
+    div.className = "row mb-2 pericial-row";
+
+    div.innerHTML = `
+        <div class="col-md-5">
+            <select class="form-select materia-select"></select>
+        </div>
+        <div class="col-md-5">
+            <select class="form-select perito-select">
+                {% for perito in peritos %}
+                    <option value="{{ perito[0] }}">{{ perito[1] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-center">
+            <button type="button"
+                    class="btn btn-sm btn-danger"
+                    onclick="this.closest('.pericial-row').remove()">
+                X
+            </button>
+        </div>
+    `;
+
+    container.appendChild(div);
+
+    const select = div.querySelector(".materia-select");
+
+    materiasDisponibles.forEach(m => {
+        select.innerHTML += `<option value="${m[0]}">${m[1]}</option>`;
+    });
+}
+
+document.getElementById("nuevoLlamadoForm").onsubmit = async (e) => {
+
+    e.preventDefault();
+
+    const libro_id = parseInt(document.getElementById("libroSelect").value);
+    const mp_id = parseInt(document.getElementById("mp_id").value);
+    const carpeta = document.getElementById("carpeta").value;
+    const fecha = document.getElementById("fecha").value;
+    const hora = document.getElementById("hora").value;
+    const detenido = document.getElementById("detenido").checked;
+
+    let bodyData = {
+        libro_id: libro_id,
+        mp_solicitante_id: mp_id,
+        detenido: detenido,
+        carpeta_investigacion: carpeta,
+        detalles: "",
+        fecha_registro: fecha,
+        hora_registro: hora
+    };
+
+    if (esSUIP) {
+
+        let periciales = [];
+
+        document.querySelectorAll(".pericial-row").forEach(row => {
+
+            const materia = row.querySelector(".materia-select").value;
+            const perito = row.querySelector(".perito-select").value;
+
+            periciales.push({
+                materia_id: parseInt(materia),
+                perito_id: parseInt(perito)
+            });
+        });
+
+        bodyData.periciales = periciales;
+
+    } else {
+
+        const row = document.querySelector(".pericial-row");
+
+        bodyData.materia_id = parseInt(
+            row.querySelector(".materia-select").value
+        );
+
+        bodyData.perito_id = parseInt(
+            row.querySelector(".perito-select").value
+        );
+    }
+
+    const res = await fetch("/crear-llamado", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(bodyData)
+    });
+
+    const data = await res.json();
+
+    if (data.numero_oficial) {
+
+        document.getElementById("numeroGenerado").innerText = data.numero_oficial;
+        document.getElementById("successBox").classList.remove("d-none");
+
+        document.getElementById("nuevoLlamadoForm").reset();
+        document.getElementById("materiasContainer").innerHTML = "";
+        aplicarLibro();  // 🔥 recarga materias automáticamente
+        cargarHistorial();     // 🔥 Recarga historial del libro
+
+
+    } else {
+        alert(JSON.stringify(data));
+    }
+};
+
+window.onload = function() {
+
+    // Cargar materias del libro actual al abrir
+    aplicarLibro();
+
+    // 🔥 Cambiar automáticamente cuando cambie el libro
+    document
+        .getElementById("libroSelect")
+        .addEventListener("change", aplicarLibro);
+};
+
+async function cargarHistorial() {
+
+    const libroId = parseInt(document.getElementById("libroSelect").value);
+
+    const res = await fetch(`/historial-libro/${libroId}`);
+    const data = await res.json();
+
+    const tbody = document.querySelector("#tablaHistorial tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(item => {
+
+        let accion = "";
+
+        if (item.cerrado) {
+
+            accion = '<span class="badge bg-success">Cerrado</span>';
+
+        } else {
+
+            accion = `
+                <button class="btn btn-sm btn-primary"
+                    onclick="abrirDescarga(${item.pericial_id})">
+                    Descargar
+                </button>
+            `;
+        }
+
+        const row = `
+            <tr>
+                <td><strong>${item.numero}</strong></td>
+                <td>${item.fecha}</td>
+                <td>${item.carpeta || "-"}</td>
+                <td>
+                    ${item.materia}
+                    <br>
+                    <small class="text-muted">
+                        ${item.tipo_documento ? item.tipo_documento : "PENDIENTE"}
+                    </small>
+                </td>
+                <td>${accion}</td>
+            </tr>
+        `;
+
+        tbody.innerHTML += row;
+    });
+}
+
+
+async function irANumero() {
+
+    const libroId = parseInt(document.getElementById("libroSelect").value);
+    const numero = document.getElementById("irANumero").value;
+
+    if (!numero) {
+        cargarHistorial();
+        return;
+    }
+
+    const res = await fetch(`/historial-libro/${libroId}?desde=${numero}`);
+    const data = await res.json();
+
+    const tbody = document.querySelector("#tablaHistorial tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(item => {
+
+        let accion = "";
+
+        if (item.cerrado) {
+            accion = '<span class="badge bg-success">Cerrado</span>';
+        } else {
+            accion = `
+                <button class="btn btn-sm btn-primary"
+                    onclick="abrirDescarga(${item.pericial_id})">
+                    Descargar
+                </button>
+            `;
+        }
+
+        const row = `
+            <tr>
+                <td><strong>${item.numero}</strong></td>
+                <td>${item.fecha}</td>
+                <td>${item.carpeta || "-"}</td>
+                <td>
+                    ${item.materia}
+                    <br>
+                    <small class="text-muted">
+                        ${item.tipo_documento ? item.tipo_documento : "PENDIENTE"}
+                    </small>
+                </td>
+                <td>${accion}</td>
+            </tr>
+        `;
+
+        tbody.innerHTML += row;
+    });
+}
+
+
+
+
+function abrirDescarga(pericial_id) {
+
+    document.getElementById("modal_pericial_id").value = pericial_id;
+
+    const modal = new bootstrap.Modal(
+        document.getElementById("modalDescarga")
+    );
+
+    modal.show();
+}
+
+
+async function confirmarDescarga() {
+
+    const pericial_id = document.getElementById("modal_pericial_id").value;
+    const tipo = document.getElementById("modal_tipo").value;
+    const recibido = document.getElementById("modal_recibido").value;
+    const fecha = document.getElementById("modal_fecha").value;
+
+    const res = await fetch("/descargar-pericial", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            pericial_id: parseInt(pericial_id),
+            tipo_documento: tipo,
+            recibido_por: recibido,
+            fecha_entrega_autoridad: fecha
+        })
+    });
+
+    const data = await res.json();
+
+    if (data.message) {
+
+        const modal = bootstrap.Modal.getInstance(
+            document.getElementById("modalDescarga")
+        );
+        modal.hide();
+
+        cargarHistorial();
+
+    } else {
+        alert(JSON.stringify(data));
+    }
+}
+
+
+
+</script>
+
+
+{% endblock %}
